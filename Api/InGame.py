@@ -139,6 +139,13 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
         return None
     except Exception as e:
         print(f"Error processing response: {e}")
+        # HACK: Error aane par raw data ko hex mein convert karke screen par dikhao
+        if response and response.content:
+            return {
+                "success": False, 
+                "error_details": str(e), 
+                "clean_hex": response.content.hex()
+            }
         return None
 
 
