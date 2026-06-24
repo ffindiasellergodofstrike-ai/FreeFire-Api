@@ -46,7 +46,6 @@ enum CallSignSrcType {
     CallSignSrc_FRESH_PLAYER_RECOMMEND = 40;
 }
 
-
 message request {
     uint64 accountId = 1;
     CallSignSrcType callSignSrc = 2;
@@ -55,8 +54,6 @@ message request {
     optional bool needSparkInfo = 5;
 }
 
-	
-	
 enum EAttendanceVeteranLeaveDays {
     VETERANLEAVEDAYSNONE = 0;
     VETERANLEAVEDAYSSHORT = 1;
@@ -284,7 +281,6 @@ message response {
     repeated AccountCollectionCustomItemInfo collection_custom_list = 17;
 }
 
-
 message AccountInfoBasic {
     uint64 accountid = 1;
     uint32 accounttype = 2;
@@ -346,9 +342,9 @@ message AccountInfoBasic {
     uint32 clanframeid = 58;
     bool membershipstate = 59;
     repeated OccupationSeasonInfo selectoccupations = 60;
-    SocialHighLightsWithSocialBasicInfo socialhighlightswithbasicinfo = 61;
+    // Removed: SocialHighLightsWithSocialBasicInfo socialhighlightswithbasicinfo = 61;
     repeated AbTestChoice abtestchoices = 62;
-    repeated ItemTagInfo itemtaginfo = 63;
+    // Removed: repeated ItemTagInfo itemtaginfo = 63;
     uint32 ranksort = 64;
     uint32 csranksort = 65;
     uint32 hipporank = 66;
@@ -364,11 +360,10 @@ message AccountInfoBasic {
     bool displaycspeakpoint = 76;
     uint32 cspeaktournamentrankpos = 77;
     uint32 avatarframe = 78;
-	BlacklistRes blacklist = 79;
+    BlacklistRes blacklist = 79;
     WorkshopAccountSummaryInfo workshop_summary_info = 80;
     AccountBasicSparkInfo spark_info = 81;
     SocialBasicInfo social_basic_info = 82;
-	
 }
 
 message AccountBasicSparkInfo {
@@ -381,7 +376,6 @@ message WorkshopAccountSummaryInfo {
     uint32 exp = 2;
 }
 
-
 message BlacklistRes {
     uint64 account_id = 1;
     string device_id = 2;
@@ -392,8 +386,6 @@ message BlacklistRes {
     uint32 ban_expire_duration = 7;
     string ban_type = 8;
 }
-
-
 
 message AccountPrefers {
     bool hidemylobby = 1;
@@ -469,12 +461,11 @@ message PrimePrivilegeDetail {
     uint32 shareeremaintimes = 7;
 }
 
-
 message AvatarProfile {
     optional uint32 avatarid = 1;
     optional uint32 skincolor = 2;
     repeated uint32 clothes = 3;
-    repeated uint32 equipedskills = 4; // this Should be but not [repeated AvatarSkillSlot equipedskills = 4;]
+    repeated AvatarSkillSlot equipedskills = 4; 
     optional bool isselected = 5;
     optional uint32 pveprimaryweapon = 6;
     optional bool isselectedawaken = 7;
@@ -485,7 +476,6 @@ message AvatarProfile {
     repeated uint32 clothestailoreffects = 12;
     repeated ItemTagInfo itemtaginfo = 13;
 }
-
 
 message AvatarSkillSlot {
     uint32 slotid = 1;
@@ -568,7 +558,7 @@ message SocialBasicInfo {
     uint64 accountid = 1;
     ESocialGender gender = 2;
     ESocialLanguage language = 3;
-    ESocialTimeOnline timeonline = 4;
+    // Removed: ESocialTimeOnline timeonline = 4;
     ESocialTimeActive timeactive = 5;
     repeated ESocialPlayerBattleTagID battletag = 6;
     repeated ESocialSocialTag socialtag = 7;
@@ -666,7 +656,6 @@ message ModeStatsSummaryInfo {
     uint32 reachedheroiccnt = 1;
     uint32 maxscore = 2;
 }
-
 
 enum SparkState {
     SparkState_NONE = 0;
