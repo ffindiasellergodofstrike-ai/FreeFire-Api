@@ -118,9 +118,7 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
       "Content-Type": "application/x-www-form-urlencoded",
       "X-Unity-Version": "2022.3.47f1",
       "Content-Length": "16"
-    }
-    
-    
+    } 
     
    response = requests.post(url, data=encrypted_payload, headers=headers)
     if DEBUG:
@@ -129,7 +127,7 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
     try:
         response.raise_for_status()
         
-        # 1. NORMAL MODE (Agar Protobuf Sancha Sahi Hai)
+        # 1. NORMAL MODE
         message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
         json_data = json.loads(json.dumps(message, default=str))
         return json_data
@@ -138,21 +136,16 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
         print(f"[!] Schema Error Detect Hua: {e}")
         print("[*] TRIGGERING BYPASS MODE...")
         
-        # 2. BYPASS MODE (Bina Protobuf Sanche Ke Data Nikalna)
+        # 2. BYPASS MODE
         try:
-            # Blackbox bina schema ke bytes ko dictionary mein tod deta hai
             raw_dict, _ = blackboxprotobuf.decode_message(response.content)
-            
-            # AccountInfoBasic field number '1' ke andar hota hai
             acc_data = raw_dict.get('1', {})
             
-            # Bytes ko normal text mein convert karne ka chota function
             def safe_str(val):
                 if isinstance(val, bytes):
                     return val.decode('utf-8', errors='ignore')
                 return str(val) if val else ""
 
-            # Baki ka data manually nikal kar JSON bana do (Never Crashes)
             bypass_json = {
                 "accountInfo": {
                     "accountid": acc_data.get('1', 0),
