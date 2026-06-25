@@ -84,53 +84,26 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         # Catch any unexpected runtime issues
         raise RuntimeError(f"Unhandled error in search_account_by_keyword: {e}")
 
-def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
-    """
-    Get player personal show data
-    
-    Args:
-        authorization (str): Bearer token for authentication
-        account_id (int): Player account ID
-        need_gallery_info (bool): Whether to include gallery info, default False
-        call_sign_src (int): Call sign source, default 7
-    
-    Returns:
-        dict: JSON response data
-    """
-    url = f"{serverurl}/GetPlayerPersonalShow"
+headers = {
+        "Host": "client.ind.freefiremobile.com",
+        "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
+        "Accept": "*/*",
+        "Accept-Encoding": "deflate, gzip",
+        "Authorization": f"Bearer {authorization}",
+        "X-GA": "v1 1",
+        "ReleaseVersion": RELEASEVERSION,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Unity-Version": "2022.3.47f1",
+        "Content-Length": "16"
+    }
 
-    encrypted_payload = encode_protobuf({
-        "accountId": account_id,
-        "callSignSrc": call_sign_src,
-        "needGalleryInfo": need_gallery_info,
-        "needBlacklist": need_blacklist,
-        "needSparkInfo": need_spark_info,
-    }, Proto.compiled.PlayerPersonalShow_pb2.request())
-
-    headers = {
-      "Host": "client.ind.freefiremobile.com",
-      "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
-      "Accept": "*/*",
-      "Accept-Encoding": "deflate, gzip",
-      "Authorization": f"Bearer {authorization}",
-      "X-GA": "v1 1",
-      "ReleaseVersion": RELEASEVERSION,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-Unity-Version": "2022.3.47f1",
-      "Content-Length": "16"
-    } 
-    
-   response = requests.post(url, data=encrypted_payload, headers=headers)
+    response = requests.post(url, data=encrypted_payload, headers=headers)
     
     try:
         response.raise_for_status()
-        # Decode protobuf normally
         message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
         return json.loads(json.dumps(message, default=str))
-
     except Exception as e:
-        # Agar error aata hai, toh crash mat hone do
-        # Bas console mein error print karo aur return kar do taaki server na gire
         print(f"[!] Critical Parsing Error: {e}")
         return {"status": "error", "message": "Schema update required", "error_details": str(e)}
 
