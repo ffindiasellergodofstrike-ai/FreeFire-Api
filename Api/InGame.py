@@ -121,53 +121,18 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
     } 
     
    response = requests.post(url, data=encrypted_payload, headers=headers)
-    if DEBUG:
-        print("[I] RES:", response.content, "\n")
-        
+    
     try:
         response.raise_for_status()
-        
-        # 1. NORMAL MODE
+        # Decode protobuf normally
         message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
-        json_data = json.loads(json.dumps(message, default=str))
-        return json_data
+        return json.loads(json.dumps(message, default=str))
 
     except Exception as e:
-        print(f"[!] Schema Error Detect Hua: {e}")
-        print("[*] TRIGGERING BYPASS MODE...")
-        
-        # 2. BYPASS MODE
-        try:
-            raw_dict, _ = blackboxprotobuf.decode_message(response.content)
-            acc_data = raw_dict.get('1', {})
-            
-            def safe_str(val):
-                if isinstance(val, bytes):
-                    return val.decode('utf-8', errors='ignore')
-                return str(val) if val else ""
-
-            bypass_json = {
-                "accountInfo": {
-                    "accountid": acc_data.get('1', 0),
-                    "accountname": safe_str(acc_data.get('3', '')),
-                    "accountlevel": acc_data.get('4', 0),
-                    "accountlikes": acc_data.get('5', 0),
-                    "accountexp": acc_data.get('6', 0),
-                    "accountregion": safe_str(acc_data.get('7', '')),
-                    "csrank": acc_data.get('14', 0),
-                    "brrank": acc_data.get('13', 0),
-                },
-                "api_status": "Bypass Mode Active",
-                "message": "Naya Garena update detect hua. Naye fields ko bypass karke bacha hua data show kiya gaya hai."
-            }
-            
-            print("[+] Bypass Successful! Data bheja jaa raha hai.")
-            return bypass_json
-            
-        except Exception as bypass_e:
-            print(f"[-] Bypass bhi fail ho gaya. UID sach mein private/banned hai: {bypass_e}")
-            return None
-
+        # Agar error aata hai, toh crash mat hone do
+        # Bas console mein error print karo aur return kar do taaki server na gire
+        print(f"[!] Critical Parsing Error: {e}")
+        return {"status": "error", "message": "Schema update required", "error_details": str(e)}
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     """
