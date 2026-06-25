@@ -83,62 +83,46 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         # Catch any unexpected runtime issues
         raise RuntimeError(f"Unhandled error in search_account_by_keyword: {e}")
 
-def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
-    """
-    Get player personal show data
-    
-    Args:
-        authorization (str): Bearer token for authentication
-        account_id (int): Player account ID
-        need_gallery_info (bool): Whether to include gallery info, default False
-        call_sign_src (int): Call sign source, default 7
-    
-    Returns:
-        dict: JSON response data
-    """
-    url = f"{serverurl}/GetPlayerPersonalShow"
+def get_player_personal_show(serverurl, authorization, account_id, **kwargs):
+    url = f"{serverurl.rstrip('/')}/GetPlayerPersonalShow"
 
-    encrypted_payload = encode_protobuf({
-        "accountId": account_id,
-        "callSignSrc": call_sign_src,
-        "needGalleryInfo": need_gallery_info,
-        "needBlacklist": need_blacklist,
-        "needSparkInfo": need_spark_info,
-    }, Proto.compiled.PlayerPersonalShow_pb2.request())
-
-    headers = {
-      "Host": "client.ind.freefiremobile.com",
-      "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
-      "Accept": "*/*",
-      "Accept-Encoding": "deflate, gzip",
-      "Authorization": f"Bearer {authorization}",
-      "X-GA": "v1 1",
-      "ReleaseVersion": RELEASEVERSION,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "X-Unity-Version": "2022.3.47f1",
-      "Content-Length": "16"
-    }
-    
-    
-    
-    response = requests.post(url, data=encrypted_payload, headers=headers)
-    if DEBUG:
-        print("[GetPlayerPersonalShow] Response(raw):", response.content, "\n")
     try:
-        response.raise_for_status()  # Raise an exception for bad status codes
+        # Standard Payload for OB54
+        payload_data = {
+            "accountId": int(account_id),
+            "callSignSrc": kwargs.get('call_sign_src', 7),
+            "needGalleryInfo": kwargs.get('need_gallery_info', False),
+            "needBlacklist": kwargs.get('need_blacklist', False),
+            "needSparkInfo": kwargs.get('need_spark_info', False),
+        }
         
-        # Decode protobuf response
-        message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
+        encrypted_payload = encode_protobuf(payload_data, Proto.compiled.PlayerPersonalShow_pb2.request())
+        headers = get_standard_headers(authorization)
         
-        # Convert to JSON
-        json_data = json.loads(json.dumps(message, default=str))
-        return json_data
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {response.text}")
-        return None
+        response = requests.post(url, data=encrypted_payload, headers=headers, timeout=15)
+        response.raise_for_status()
+
+        # --- SAFE DECODING BLOCK ---
+        try:
+            # Try to decode normally
+            message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
+            return json.loads(json.dumps(message, default=str))
+        except Exception as parse_error:
+            print(f"!!! OB54 Parsing Warning on UID {account_id}: {parse_error}")
+            
+            # WORKAROUND: If parsing fails, it's because of new OB54 fields.
+            # We can try to force-decode strings from the raw binary so you still get the name/bio
+            import re
+            # Extract strings (like Nickname/Bio) directly from raw bytes as a backup
+            strings = re.findall(b'[\\x20-\\x7E]{4,}', response.content)
+            return {
+                "error": "OB54_PROTOBUF_OUTDATED",
+                "raw_strings_found": [s.decode(errors='ignore') for s in strings],
+                "notice": "Please update your PlayerPersonalShow_pb2.py to OB54 version"
+            }
+            
     except Exception as e:
-        print(f"Error processing response: {e}")
+        print(f"Request failed for {account_id}: {e}")
         return None
 
 
