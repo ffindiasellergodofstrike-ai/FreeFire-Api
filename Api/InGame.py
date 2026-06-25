@@ -85,8 +85,10 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
         return safe_json_load(message)
         
     except Exception as e:
-        # Crash bypass: Instead of crashing, return a status error
-        print(f"[!] Critical Parsing Error in get_player_personal_show: {e}")
+        print(f"[!] Critical Parsing Error: {e}")
+        # Ye line tumhein console mein batayegi ki kaunsa field error de raha hai
+        import traceback
+        traceback.print_exc() 
         return {"status": "error", "message": "Schema update required", "error_details": str(e)}
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
