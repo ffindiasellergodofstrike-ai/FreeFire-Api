@@ -42,55 +42,55 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         return None
 
 def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
-    # Fix: Ensure no double slashes in URL
     url = f"{serverurl.rstrip('/')}/GetPlayerPersonalShow"
 
-    encrypted_payload = encode_protobuf({
+    payload = {
         "accountId": account_id,
         "callSignSrc": call_sign_src,
         "needGalleryInfo": need_gallery_info,
         "needBlacklist": need_blacklist,
         "needSparkInfo": need_spark_info,
-    }, Proto.compiled.PlayerPersonalShow_pb2.request())
-
-    # FIX: Calculate actual payload size (This fixes the 404 for different UIDs)
-    actual_length = str(len(encrypted_payload))
-
+    }
+    
+    encrypted_payload = encode_protobuf(payload, Proto.compiled.PlayerPersonalShow_pb2.request())
+    
     headers = {
-      "Host": "client.ind.freefiremobile.com",
       "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
-      "Accept": "*/*",
-      "Accept-Encoding": "deflate, gzip",
       "Authorization": f"Bearer {authorization}",
-      "X-GA": "v1 1",
       "ReleaseVersion": RELEASEVERSION,
       "Content-Type": "application/x-www-form-urlencoded",
-      "X-Unity-Version": "2022.3.47f1",
-      "Content-Length": actual_length # Use dynamic length instead of "16"
+      "Content-Length": str(len(encrypted_payload))
     }
     
     response = requests.post(url, data=encrypted_payload, headers=headers)
     
-    if DEBUG:
-        print("[GetPlayerPersonalShow] Response(raw):", response.content, "\n")
-    
     try:
         response.raise_for_status()
+        message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
         
-        # --- SAFE DECODING BLOCK (Fixes OB54 Parsing Error) ---
-        try:
-            message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
-            return json.loads(json.dumps(message, default=str))
-        except Exception as parse_err:
-            print(f"!!! OB54 Data detected on UID {account_id}. Proto file is outdated.")
-            return {"error": "PROTO_OUTDATED", "uid": account_id}
-            
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {response.status_code}")
-        return None
+        # Convert the main data to a dictionary
+        data = json.loads(json.dumps(message, default=str))
+
+        # --- ADD NEW FIELDS TO JSON OUTPUT ---
+        # These will now show up in your browser via Vercel
+        data['ob54_new_fields'] = {}
+
+        # Achievement Data (Field 18)
+        if hasattr(message, 'achievement_info') and message.achievement_info:
+            data['ob54_new_fields']['achievement_raw_hex'] = message.achievement_info.hex()
+        
+        # Honor/Title Data (Field 19)
+        if hasattr(message, 'honor_info') and message.honor_info:
+            data['ob54_new_fields']['honor_raw_hex'] = message.honor_info.hex()
+
+        # Achievement Points (Field 83 inside basicinfo)
+        if hasattr(message.basicinfo, 'achievement_points'):
+            data['ob54_new_fields']['achievement_points'] = message.basicinfo.achievement_points
+
+        return data
+        
     except Exception as e:
-        print(f"Error processing response: {e}")
-        return None
+        return {"error": str(e), "status": "failed"}
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     try:
