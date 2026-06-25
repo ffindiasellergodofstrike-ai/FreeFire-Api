@@ -1,4 +1,5 @@
 import requests
+import blackboxprotobuf
 import Proto.compiled.PlayerPersonalShow_pb2
 import Proto.compiled.PlayerStats_pb2
 import Proto.compiled.PlayerCSStats_pb2
@@ -121,25 +122,58 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
     
     
     
-    response = requests.post(url, data=encrypted_payload, headers=headers)
+   response = requests.post(url, data=encrypted_payload, headers=headers)
     if DEBUG:
-        print("[GetPlayerPersonalShow] Response(raw):", response.content, "\n")
+        print("[I] RES:", response.content, "\n")
+        
     try:
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response.raise_for_status()
         
-        # Decode protobuf response
+        # 1. NORMAL MODE (Agar Protobuf Sancha Sahi Hai)
         message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
-        
-        # Convert to JSON
         json_data = json.loads(json.dumps(message, default=str))
         return json_data
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {response.text}")
-        return None
+
     except Exception as e:
-        print(f"Error processing response: {e}")
-        return None
+        print(f"[!] Schema Error Detect Hua: {e}")
+        print("[*] TRIGGERING BYPASS MODE...")
+        
+        # 2. BYPASS MODE (Bina Protobuf Sanche Ke Data Nikalna)
+        try:
+            # Blackbox bina schema ke bytes ko dictionary mein tod deta hai
+            raw_dict, _ = blackboxprotobuf.decode_message(response.content)
+            
+            # AccountInfoBasic field number '1' ke andar hota hai
+            acc_data = raw_dict.get('1', {})
+            
+            # Bytes ko normal text mein convert karne ka chota function
+            def safe_str(val):
+                if isinstance(val, bytes):
+                    return val.decode('utf-8', errors='ignore')
+                return str(val) if val else ""
+
+            # Baki ka data manually nikal kar JSON bana do (Never Crashes)
+            bypass_json = {
+                "accountInfo": {
+                    "accountid": acc_data.get('1', 0),
+                    "accountname": safe_str(acc_data.get('3', '')),
+                    "accountlevel": acc_data.get('4', 0),
+                    "accountlikes": acc_data.get('5', 0),
+                    "accountexp": acc_data.get('6', 0),
+                    "accountregion": safe_str(acc_data.get('7', '')),
+                    "csrank": acc_data.get('14', 0),
+                    "brrank": acc_data.get('13', 0),
+                },
+                "api_status": "Bypass Mode Active",
+                "message": "Naya Garena update detect hua. Naye fields ko bypass karke bacha hua data show kiya gaya hai."
+            }
+            
+            print("[+] Bypass Successful! Data bheja jaa raha hai.")
+            return bypass_json
+            
+        except Exception as bypass_e:
+            print(f"[-] Bypass bhi fail ho gaya. UID sach mein private/banned hai: {bypass_e}")
+            return None
 
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
