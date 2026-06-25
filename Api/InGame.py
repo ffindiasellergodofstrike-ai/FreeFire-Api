@@ -42,11 +42,10 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         return None
 
 def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
-    # 1. Ensure No Double Slashes
     url = f"{serverurl.rstrip('/')}/GetPlayerPersonalShow"
 
-    # 2. Ensure Data Types are correct (Forces numbers/booleans)
     try:
+        # Request data
         payload_dict = {
             "accountId": int(account_id),
             "callSignSrc": int(call_sign_src),
@@ -55,10 +54,8 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
             "needSparkInfo": bool(need_spark_info),
         }
         
-        # 3. Encode Payload
         encrypted_payload = encode_protobuf(payload_dict, Proto.compiled.PlayerPersonalShow_pb2.request())
         
-        # 4. Clean Headers (Removed 'Host' to prevent region errors)
         headers = {
             "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
             "Accept": "*/*",
@@ -71,38 +68,38 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
             "Content-Length": str(len(encrypted_payload))
         }
 
-        # 5. Execute Request
         response = requests.post(url, data=encrypted_payload, headers=headers, timeout=15)
-        
-        # This triggers the 500 error message you saw
         response.raise_for_status()
 
-        # 6. Decode
-        message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
+        # Decoding (Aapka function dictionary return karta hai)
+        data = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
         
-        # Convert to dictionary
-        data = json.loads(json.dumps(message, default=str))
+        # Agar data string hai to JSON mein convert karein
+        if isinstance(data, str):
+            data = json.loads(data)
 
-        # 7. ADD OB54 NEW FIELDS TO JSON (For viewing in Vercel)
-        data['ob54_new_fields'] = {}
-        if hasattr(message.basicinfo, 'achievement_points'):
-            data['ob54_new_fields']['achievement_points'] = message.basicinfo.achievement_points
-        if hasattr(message, 'achievement_info') and message.achievement_info:
-            data['ob54_new_fields']['achievement_raw_hex'] = message.achievement_info.hex()
+        # --- OB54 NEW FIELDS FIX (Safe Dictionary Access) ---
+        # Hum check kar rahe hain ki kya data mein basicinfo aur achievement_points hain
+        
+        basic_info = data.get('basicinfo', {})
+        
+        # Naya section banate hain result mein dikhane ke liye
+        data['ob54_debug'] = {
+            "achievement_points": basic_info.get('achievement_points', "Not Found"),
+            "achievement_rank": basic_info.get('achievement_rank_id', "Not Found"),
+            # Agar proto updated hai to ye fields milengi
+            "has_achievement_info": "achievement_info" in data 
+        }
 
         return data
 
-    except requests.exceptions.HTTPError as e:
-        # If the server says 500, we catch it here
-        return {
-            "status": "failed",
-            "error_code": response.status_code,
-            "error": "Server rejected request. Check if RELEASEVERSION is correct.",
-            "server_message": response.text[:100]
-        }
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
-
+        # Error aane par hum pura error message return karenge taaki debug ho sake
+        return {
+            "status": "failed", 
+            "error": str(e),
+            "type": str(type(e).__name__)
+        }
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     try:
         uid = int(uid)
