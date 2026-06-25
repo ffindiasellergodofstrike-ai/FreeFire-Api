@@ -692,8 +692,19 @@ message SparkInfo {
     uint32 appearance_stage = 9;
     repeated SparkStageAppearance stage_appearance_items = 10;
 }
-
 message AccountCollectionCustomItemInfo {
     uint32 item_id = 1;
     string custom_info = 2;
+}
+
+// OB54 New Objects
+message Field75Data {
+    bool field_1 = 1;
+    uint32 field_2 = 2;
+}
+
+message Field76Data {
+    uint32 uid = 1;
+    uint32 field_2 = 2;
+    bytes field_3 = 3;
 }
