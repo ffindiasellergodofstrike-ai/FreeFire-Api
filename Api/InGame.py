@@ -42,55 +42,66 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         return None
 
 def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
+    # 1. Ensure No Double Slashes
     url = f"{serverurl.rstrip('/')}/GetPlayerPersonalShow"
 
-    payload = {
-        "accountId": account_id,
-        "callSignSrc": call_sign_src,
-        "needGalleryInfo": need_gallery_info,
-        "needBlacklist": need_blacklist,
-        "needSparkInfo": need_spark_info,
-    }
-    
-    encrypted_payload = encode_protobuf(payload, Proto.compiled.PlayerPersonalShow_pb2.request())
-    
-    headers = {
-      "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
-      "Authorization": f"Bearer {authorization}",
-      "ReleaseVersion": RELEASEVERSION,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Content-Length": str(len(encrypted_payload))
-    }
-    
-    response = requests.post(url, data=encrypted_payload, headers=headers)
-    
+    # 2. Ensure Data Types are correct (Forces numbers/booleans)
     try:
+        payload_dict = {
+            "accountId": int(account_id),
+            "callSignSrc": int(call_sign_src),
+            "needGalleryInfo": bool(need_gallery_info),
+            "needBlacklist": bool(need_blacklist),
+            "needSparkInfo": bool(need_spark_info),
+        }
+        
+        # 3. Encode Payload
+        encrypted_payload = encode_protobuf(payload_dict, Proto.compiled.PlayerPersonalShow_pb2.request())
+        
+        # 4. Clean Headers (Removed 'Host' to prevent region errors)
+        headers = {
+            "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip, deflate",
+            "Authorization": f"Bearer {authorization}",
+            "X-GA": "v1 1",
+            "ReleaseVersion": RELEASEVERSION,
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Unity-Version": "2022.3.47f1",
+            "Content-Length": str(len(encrypted_payload))
+        }
+
+        # 5. Execute Request
+        response = requests.post(url, data=encrypted_payload, headers=headers, timeout=15)
+        
+        # This triggers the 500 error message you saw
         response.raise_for_status()
+
+        # 6. Decode
         message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
         
-        # Convert the main data to a dictionary
+        # Convert to dictionary
         data = json.loads(json.dumps(message, default=str))
 
-        # --- ADD NEW FIELDS TO JSON OUTPUT ---
-        # These will now show up in your browser via Vercel
+        # 7. ADD OB54 NEW FIELDS TO JSON (For viewing in Vercel)
         data['ob54_new_fields'] = {}
-
-        # Achievement Data (Field 18)
-        if hasattr(message, 'achievement_info') and message.achievement_info:
-            data['ob54_new_fields']['achievement_raw_hex'] = message.achievement_info.hex()
-        
-        # Honor/Title Data (Field 19)
-        if hasattr(message, 'honor_info') and message.honor_info:
-            data['ob54_new_fields']['honor_raw_hex'] = message.honor_info.hex()
-
-        # Achievement Points (Field 83 inside basicinfo)
         if hasattr(message.basicinfo, 'achievement_points'):
             data['ob54_new_fields']['achievement_points'] = message.basicinfo.achievement_points
+        if hasattr(message, 'achievement_info') and message.achievement_info:
+            data['ob54_new_fields']['achievement_raw_hex'] = message.achievement_info.hex()
 
         return data
-        
+
+    except requests.exceptions.HTTPError as e:
+        # If the server says 500, we catch it here
+        return {
+            "status": "failed",
+            "error_code": response.status_code,
+            "error": "Server rejected request. Check if RELEASEVERSION is correct.",
+            "server_message": response.text[:100]
+        }
     except Exception as e:
-        return {"error": str(e), "status": "failed"}
+        return {"status": "failed", "error": str(e)}
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     try:
