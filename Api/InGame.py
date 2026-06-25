@@ -43,7 +43,6 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         raise RuntimeError(f"Unhandled error in search_account_by_keyword: {e}")
 
 def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
-    # Setup Payload
     payload_data = {
         "accountId": account_id,
         "callSignSrc": call_sign_src,
@@ -53,7 +52,6 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
     }
     encrypted_payload = encode_protobuf(payload_data, Proto.compiled.PlayerPersonalShow_pb2.request())
 
-    # Setup Headers
     headers = {
         "Host": "client.ind.freefiremobile.com",
         "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
@@ -69,19 +67,24 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
 
     url = f"{serverurl}/GetPlayerPersonalShow"
     
+    response = requests.post(url, data=encrypted_payload, headers=headers)
+    response.raise_for_status()
+
+    # --- YAHAN FIX HAI ---
+    # Hum decode_protobuf call hi nahi karenge agar schema match nahi ho raha
     try:
-        response = requests.post(url, data=encrypted_payload, headers=headers)
-        response.raise_for_status()
-        
-        # Decoding
+        # 1. Try decoding normally
         message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
         return json.loads(json.dumps(message, default=str))
-        
     except Exception as e:
-        # Crash preventer
-        print(f"[!] Parsing Error in get_player_personal_show: {e}")
-        return {"status": "error", "message": "Schema update required", "error_details": str(e)}
-
+        # 2. Agar fail hota hai, toh crash mat karo. 
+        # Hum data ko 'None' return karenge taaki frontend/app crash na ho
+        print(f"[!] Schema Mismatch (OB54): {e}")
+        return {
+            "status": "error", 
+            "message": "OB54 Schema Mismatch. Decode failed.", 
+            "debug_info": "Ensure Proto files are updated for OB54"
+        }
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     try:
         # Validate inputs
