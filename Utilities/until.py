@@ -53,4 +53,15 @@ def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> messa
     instance = message_type()
     instance.ParseFromString(encoded_data)
     return json.loads(json_format.MessageToJson(instance))
+    # ... keep your imports ...
+
+def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
+    """Encodes to Protobuf WITHOUT AES encryption (Required for game data)"""
+    try:
+        json_format.ParseDict(data, proto_message)
+        return proto_message.SerializeToString()
+    except Exception as e:
+        raise Exception(f"Raw Proto conversion failed: {str(e)}")
+
+# Keep your existing encode_protobuf (with AES) for Login functions only
     
