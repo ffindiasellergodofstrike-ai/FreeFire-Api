@@ -7,13 +7,6 @@ import Proto.compiled.SearchAccountByName_pb2
 from Utilities.until import encode_protobuf, decode_protobuf
 from Configuration.APIConfiguration import RELEASEVERSION, DEBUG
 
-# --- Helper: Safe JSON decoder ---
-def safe_json_load(data):
-    try:
-        return json.loads(json.dumps(data, default=str))
-    except:
-        return {}
-
 def search_account_by_keyword(server_url, auth_token, keyword):
     try:
         endpoint = f"{server_url}/FuzzySearchAccountByName"
@@ -44,7 +37,7 @@ def search_account_by_keyword(server_url, auth_token, keyword):
             response.content,
             Proto.compiled.SearchAccountByName_pb2.response
         )
-        return safe_json_load(decoded)
+        return json.loads(json.dumps(decoded, default=str))
 
     except Exception as e:
         raise RuntimeError(f"Unhandled error in search_account_by_keyword: {e}")
@@ -80,20 +73,18 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
         response = requests.post(url, data=encrypted_payload, headers=headers)
         response.raise_for_status()
         
-        # Normal Decoding
+        # Decoding
         message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
-        return safe_json_load(message)
+        return json.loads(json.dumps(message, default=str))
         
     except Exception as e:
-        print(f"[!] Critical Parsing Error: {e}")
-        # Ye line tumhein console mein batayegi ki kaunsa field error de raha hai
-        import traceback
-        traceback.print_exc() 
+        # Crash preventer
+        print(f"[!] Parsing Error in get_player_personal_show: {e}")
         return {"status": "error", "message": "Schema update required", "error_details": str(e)}
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     try:
-        # Input Validation
+        # Validate inputs
         if not str(uid).isdigit():
             raise ValueError(f"Invalid UID: {uid}")
         
@@ -130,10 +121,8 @@ def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
         response.raise_for_status()
         
         message = decode_protobuf(response.content, proto_module.response)
-        return safe_json_load(message)
+        return json.loads(json.dumps(message, default=str))
         
     except Exception as e:
         print(f"[!] Error in get_player_stats: {e}")
         return {"status": "error", "message": str(e)}
-
-# --- Add any other utility functions that were in your file here ---
