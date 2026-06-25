@@ -360,8 +360,8 @@ message AccountInfoBasic {
     repeated ModeStatsInfo modestatsinfos = 72;
     BadgeInfo badgeinfo = 73;
     PrimePrivilegeDetail primeprivilegedetail = 74;
-    Field75Data cspeakpoints = 75;
-    Field76Data displaycspeakpoint = 76;
+    uint32 cspeakpoints = 75;
+    bool displaycspeakpoint = 76;
     uint32 cspeaktournamentrankpos = 77;
     uint32 avatarframe = 78;
 	BlacklistRes blacklist = 79;
@@ -692,19 +692,8 @@ message SparkInfo {
     uint32 appearance_stage = 9;
     repeated SparkStageAppearance stage_appearance_items = 10;
 }
+
 message AccountCollectionCustomItemInfo {
     uint32 item_id = 1;
     string custom_info = 2;
-}
-
-// OB54 New Objects
-message Field75Data {
-    bool field_1 = 1;
-    uint32 field_2 = 2;
-}
-
-message Field76Data {
-    uint32 uid = 1;
-    uint32 field_2 = 2;
-    bytes field_3 = 3;
 }
