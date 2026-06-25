@@ -477,7 +477,7 @@ message AvatarProfile {
     repeated uint32 clothes = 3;
     
     // Corrected to use SkillSlot Message to fix Character Parsing
-    repeated AvatarSkillSlot equipedskills = 4; 
+    repeated AvatarSkillSlot equipedskills = 4; // Change from uint32 to Slot message
     
     optional bool isselected = 5;
     optional uint32 pveprimaryweapon = 6;
@@ -703,3 +703,6 @@ message AccountCollectionCustomItemInfo {
     uint32 item_id = 1;
     string custom_info = 2;
 }
+bytes achievement_info = 18;
+    bytes honor_info = 19;
+    bytes extra_field_20 = 20;
