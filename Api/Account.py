@@ -68,7 +68,7 @@ def get_major_login(logintoken, openid):
 
     # API endpoint
     # url = "https://loginbp.ggblueshark.com/MajorLogin"
-    url = "https://loginbp.ggpolarbear.com/MajorLogin"
+    url = "https://loginbp.ggwhitehawk.com/MajorLogin"
 
     # Headers
     headers = {
