@@ -14,53 +14,69 @@ def load_accounts():
     except json.JSONDecodeError:
         raise Exception("Error parsing AccountConfiguration.json")
 
+
 def pad(text: bytes) -> bytes:
     padding_length = AES.block_size - (len(text) % AES.block_size)
     return text + bytes([padding_length] * padding_length)
+
 
 def aes_cbc_encrypt(text: bytes) -> bytes:
     aes = AES.new(MAIN_KEY, AES.MODE_CBC, MAIN_IV)
     return aes.encrypt(pad(text))
     
+
 def encode_protobuf(data: dict, proto_message: Message) -> bytes:
     """
-    Utility function to convert dictionary/data to proto bytes
-    
-    Args:
-        data (dict): Dictionary with proto data
-        proto_message (Message): Proto message instance
-    
-    Returns:
-        bytes: Serialized proto data
-    
-    Raises:
-        ValueError: If input is invalid
-        Exception: If proto conversion fails
+    Utility function to convert dictionary/data to proto bytes (AES-encrypted)
     """
     if not isinstance(data, dict):
         raise ValueError("Data must be a dictionary")
-    
+
     if not isinstance(proto_message, Message):
         raise ValueError("proto_message must be a protobuf Message")
-    
+
     try:
         json_format.ParseDict(data, proto_message)
         return aes_cbc_encrypt(proto_message.SerializeToString())
     except Exception as e:
         raise Exception(f"Proto conversion failed: {str(e)}")
 
-def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> message.Message:
+
+def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
+    """
+    Decode a protobuf message from AES-encrypted or raw protobuf bytes.
+    Returns a Python dict (JSON-serializable).
+    """
+    def aes_cbc_decrypt(ciphertext: bytes) -> bytes:
+        aes = AES.new(MAIN_KEY, AES.MODE_CBC, MAIN_IV)
+        decrypted = aes.decrypt(ciphertext)
+        # Remove PKCS#7 padding
+        # Python 3: decrypted[-1] is int
+        pad_len = decrypted[-1]
+        if pad_len < 1 or pad_len > AES.block_size:
+            raise ValueError("Invalid padding length")
+        return decrypted[:-pad_len]
+
     try:
-        instance = message_type()
-        instance.ParseFromString(encoded_data)
+        # Try AES decrypt first (most login/endpoints reply with AES)
+        try:
+            decrypted = aes_cbc_decrypt(encoded_data)
+            instance = message_type()
+            instance.ParseFromString(decrypted)
+        except Exception:
+            # If AES-decrypt or parse fails, try raw parse
+            instance = message_type()
+            instance.ParseFromString(encoded_data)
+
+        # Convert to Python dict via JSON roundtrip (existing behavior)
         return json.loads(json_format.MessageToJson(instance))
     except Exception as e:
         print(f"Protobuf Parsing Error: {e}")
-        # This will tell you if it's a wiretype mismatch or truncated message
         raise
 
+
 def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
-    """Encodes to Protobuf WITHOUT AES encryption (Required for game data)"""
+    """Encodes to Protobuf WITHOUT AES encryption (Required for some game data)"""
     try:
         json_format.ParseDict(data, proto_message)
         return proto_message.SerializeToString()
@@ -68,4 +84,3 @@ def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
         raise Exception(f"Raw Proto conversion failed: {str(e)}")
 
 # Keep your existing encode_protobuf (with AES) for Login functions only
-    
