@@ -75,6 +75,8 @@ def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
     """
     Decode a protobuf message from AES-encrypted or raw protobuf bytes.
     Attempts AES decryption first, then falls back to raw protobuf parsing.
+    
+    Uses DiscardUnknownFields to handle proto version mismatches gracefully.
     Returns a Python dict (JSON-serializable).
     
     Args:
@@ -98,6 +100,7 @@ def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
     try:
         decrypted = aes_cbc_decrypt(encoded_data)
         instance = message_type()
+        instance.DiscardUnknownFields(True)  # Handle proto version mismatches
         instance.ParseFromString(decrypted)
         
         # Successfully parsed AES-decrypted data
@@ -113,6 +116,7 @@ def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
     # Attempt 2: Try raw protobuf parsing (no decryption)
     try:
         instance = message_type()
+        instance.DiscardUnknownFields(True)  # Handle proto version mismatches
         instance.ParseFromString(encoded_data)
         
         # Successfully parsed raw protobuf data
@@ -126,7 +130,8 @@ def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
         f"Failed to decode protobuf message of type '{message_type.DESCRIPTOR.name}'. "
         f"Tried AES decryption: {aes_error}. "
         f"Tried raw parsing: {raw_error}. "
-        f"Data length: {len(encoded_data)} bytes."
+        f"Data length: {len(encoded_data)} bytes. "
+        f"Note: Proto definition may be outdated or incompatible with server version."
     )
     raise Exception(error_msg)
 
