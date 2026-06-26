@@ -46,6 +46,7 @@ enum CallSignSrcType {
     CallSignSrc_FRESH_PLAYER_RECOMMEND = 40;
 }
 
+
 message request {
     uint64 accountId = 1;
     CallSignSrcType callSignSrc = 2;
@@ -53,6 +54,8 @@ message request {
     optional bool needBlacklist = 4;
     optional bool needSparkInfo = 5;
 }
+
+	
 	
 enum EAttendanceVeteranLeaveDays {
     VETERANLEAVEDAYSNONE = 0;
@@ -279,12 +282,8 @@ message response {
     SparkInfo user_spark_info = 15;
     SparkInfo collab_spark_info = 16;
     repeated AccountCollectionCustomItemInfo collection_custom_list = 17;
-    
-    // OB54 Fixes: New Achievement & Title fields
-    bytes achievement_info = 18;
-    bytes honor_info = 19;
-    bytes title_equip_info = 20;
 }
+
 
 message AccountInfoBasic {
     uint64 accountid = 1;
@@ -369,11 +368,7 @@ message AccountInfoBasic {
     WorkshopAccountSummaryInfo workshop_summary_info = 80;
     AccountBasicSparkInfo spark_info = 81;
     SocialBasicInfo social_basic_info = 82;
-    
-    // OB54 Fixes: Achievement tracking
-    uint32 achievement_points = 83;
-    uint32 achievement_rank_id = 84;
-    uint32 background_anim_id = 85;
+	
 }
 
 message AccountBasicSparkInfo {
@@ -386,6 +381,7 @@ message WorkshopAccountSummaryInfo {
     uint32 exp = 2;
 }
 
+
 message BlacklistRes {
     uint64 account_id = 1;
     string device_id = 2;
@@ -396,6 +392,8 @@ message BlacklistRes {
     uint32 ban_expire_duration = 7;
     string ban_type = 8;
 }
+
+
 
 message AccountPrefers {
     bool hidemylobby = 1;
@@ -471,14 +469,12 @@ message PrimePrivilegeDetail {
     uint32 shareeremaintimes = 7;
 }
 
+
 message AvatarProfile {
     optional uint32 avatarid = 1;
     optional uint32 skincolor = 2;
     repeated uint32 clothes = 3;
-    
-    // Corrected to use SkillSlot Message to fix Character Parsing
-    repeated AvatarSkillSlot equipedskills = 4; // Change from uint32 to Slot message
-    
+    repeated AvatarSkillSlot equipedskills = 4; // this Should be but not [repeated AvatarSkillSlot equipedskills = 4;]
     optional bool isselected = 5;
     optional uint32 pveprimaryweapon = 6;
     optional bool isselectedawaken = 7;
@@ -488,11 +484,8 @@ message AvatarProfile {
     optional bool ismarkedstar = 11;
     repeated uint32 clothestailoreffects = 12;
     repeated ItemTagInfo itemtaginfo = 13;
-    
-    // OB54: Arrival effects and profile skins
-    repeated uint32 arrival_effects = 14;
-    uint32 profile_skin_id = 15;
 }
+
 
 message AvatarSkillSlot {
     uint32 slotid = 1;
@@ -674,6 +667,7 @@ message ModeStatsSummaryInfo {
     uint32 maxscore = 2;
 }
 
+
 enum SparkState {
     SparkState_NONE = 0;
     SparkState_ACTIVE = 1;
@@ -703,6 +697,3 @@ message AccountCollectionCustomItemInfo {
     uint32 item_id = 1;
     string custom_info = 2;
 }
-bytes achievement_info = 18;
-    bytes honor_info = 19;
-    bytes extra_field_20 = 20;
