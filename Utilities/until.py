@@ -50,10 +50,14 @@ def encode_protobuf(data: dict, proto_message: Message) -> bytes:
         raise Exception(f"Proto conversion failed: {str(e)}")
 
 def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> message.Message:
-    instance = message_type()
-    instance.ParseFromString(encoded_data)
-    return json.loads(json_format.MessageToJson(instance))
-    # ... keep your imports ...
+    try:
+        instance = message_type()
+        instance.ParseFromString(encoded_data)
+        return json.loads(json_format.MessageToJson(instance))
+    except Exception as e:
+        print(f"Protobuf Parsing Error: {e}")
+        # This will tell you if it's a wiretype mismatch or truncated message
+        raise
 
 def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
     """Encodes to Protobuf WITHOUT AES encryption (Required for game data)"""
