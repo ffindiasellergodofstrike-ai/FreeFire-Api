@@ -474,8 +474,16 @@ message AvatarProfile {
     optional uint32 avatarid = 1;
     optional uint32 skincolor = 2;
     repeated uint32 clothes = 3;
-    repeated uint32 equipedskills = 4; // Change this from AvatarSkillSlot to uint32
-    ...
+    repeated AvatarSkillSlot equipedskills = 4; // this Should be but not [repeated AvatarSkillSlot equipedskills = 4;]
+    optional bool isselected = 5;
+    optional uint32 pveprimaryweapon = 6;
+    optional bool isselectedawaken = 7;
+    optional uint32 endtime = 8;
+    optional EProfileUnlockType unlocktype = 9;
+    optional uint32 unlocktime = 10;
+    optional bool ismarkedstar = 11;
+    repeated uint32 clothestailoreffects = 12;
+    repeated ItemTagInfo itemtaginfo = 13;
 }
 
 
