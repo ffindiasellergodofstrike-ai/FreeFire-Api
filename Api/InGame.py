@@ -7,24 +7,9 @@ from Utilities.until import encode_protobuf, decode_protobuf
 import json
 from Configuration.APIConfiguration import RELEASEVERSION, DEBUG
 
-
-
 def search_account_by_keyword(server_url, auth_token, keyword):
     """
     Perform a fuzzy account search by keyword.
-
-    Args:
-        server_url (str): Base URL of the API server.
-        auth_token (str): Bearer token used for authentication.
-        keyword (str): Search term to match player names.
-
-    Returns:
-        dict: Parsed JSON response containing matching accounts.
-
-    Raises:
-        ConnectionError: If network connection fails or times out.
-        ValueError: If protobuf encoding or decoding fails.
-        RuntimeError: For invalid or empty API responses.
     """
     try:
         # --- Endpoint & Payload ---
@@ -80,13 +65,14 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         return json.loads(json.dumps(decoded, default=str))
 
     except Exception as e:
-        # Catch any unexpected runtime issues
         raise RuntimeError(f"Unhandled error in search_account_by_keyword: {e}")
 
 def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
+    """
+    Get player personal show data - FIXED FOR OB54 LARGE PROFILES
+    """
     url = f"{serverurl}/GetPlayerPersonalShow"
 
-    # Payload generate karna
     payload_data = {
         "accountId": account_id,
         "callSignSrc": call_sign_src,
@@ -97,78 +83,57 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
     
     encrypted_payload = encode_protobuf(payload_data, Proto.compiled.PlayerPersonalShow_pb2.request())
 
-    # Naye Headers (Content-Length hata diya gaya hai)
+    # FIXED HEADERS: Removed 'deflate, gzip' to get raw data
     headers = {
       "Host": "client.ind.freefiremobile.com",
       "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
       "Accept": "*/*",
-      "Accept-Encoding": "deflate, gzip",
+      "Accept-Encoding": "identity", 
       "Authorization": f"Bearer {authorization}",
       "X-GA": "v1 1",
       "ReleaseVersion": RELEASEVERSION,
       "Content-Type": "application/x-www-form-urlencoded",
       "X-Unity-Version": "2022.3.47f1"
-      # Content-Length yahan se hata diya hai, requests ise handle karega
     }
     
     response = requests.post(url, data=encrypted_payload, headers=headers)
-    
     if DEBUG:
-        print("[GetPlayerPersonalShow] Response(raw) length:", len(response.content))
+        print(f"[GetPlayerPersonalShow] Response(raw) length: {len(response.content)}")
 
     try:
         response.raise_for_status()
-        
-        # --- SMART DECODE LOGIC ---
-        # Agar response ka pehla byte 10 (0x0A) hai, to ye Raw Protobuf hai.
-        # Isse AES padding error nahi aayega.
         raw_res = response.content
-        if len(raw_res) > 0 and raw_res[0] == 10:
-            message = Proto.compiled.PlayerPersonalShow_pb2.response()
-            message.ParseFromString(raw_res)
-        else:
-            # Purana tarika agar AES encrypted ho
+        
+        # Sometime Garena adds a 5-byte header. We check for the Protobuf tag (0x0A / 10)
+        start_offset = 0
+        if len(raw_res) > 5 and raw_res[0] != 10 and raw_res[5] == 10:
+            start_offset = 5
+        
+        try:
+            # Method 1: Try your utility decoder
             message = decode_protobuf(raw_res, Proto.compiled.PlayerPersonalShow_pb2.response)
-        
-        # Convert to JSON
-        json_data = json.loads(json.dumps(message, default=str))
-        return json_data
-        
+            return message
+        except:
+            # Method 2: Robust Direct Parse (Best for OB54)
+            msg_obj = Proto.compiled.PlayerPersonalShow_pb2.response()
+            # MergeFromString is more lenient with new/unknown fields
+            msg_obj.MergeFromString(raw_res[start_offset:])
+            return json.loads(json.dumps(msg_obj, default=str))
+            
     except Exception as e:
         print(f"Error processing response for UID {account_id}: {e}")
-        # Fallback: Bina AES ke direct try karein
-        try:
-            message = Proto.compiled.PlayerPersonalShow_pb2.response()
-            message.ParseFromString(response.content)
-            return json.loads(json.dumps(message, default=str))
-        except:
-            return None
+        return None
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     """
     Get player statistics for BR or CS mode
-    
-    Args:
-        mode (str): "br" or "cs"
-        uid (int): Player account ID
-        match_type (str): "CAREER", "NORMAL", or "RANKED"
-    
-    Returns:
-        dict: Player statistics data
-    
-    Raises:
-        ValueError: For invalid input parameters
-        ConnectionError: For network-related errors
-        ProtobufError: For protobuf encoding/decoding errors
-        APIError: For API response errors
     """
-    
     try:
         # Validate inputs
         if not isinstance(uid, (int, str)) or not str(uid).isdigit():
             raise ValueError(f"Invalid UID: {uid}. Must be a numeric value.")
         
-        uid = int(uid)  # Convert to int if it's a numeric string
+        uid = int(uid)
         
         mode = mode.lower()
         if mode not in ["br", "cs"]:
@@ -178,46 +143,27 @@ def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
         if match_type not in ["CAREER", "NORMAL", "RANKED"]:
             raise ValueError(f"Invalid match type: {match_type}. Must be 'CAREER', 'NORMAL', or 'RANKED'")
         
-        # Map match type to numeric values
         if mode == "br":
-            type_mapping = {
-                "CAREER": 0,
-                "NORMAL": 1, 
-                "RANKED": 2
-            }
+            type_mapping = {"CAREER": 0, "NORMAL": 1, "RANKED": 2}
             url = f"{serverurl}/GetPlayerStats"
             proto_module = Proto.compiled.PlayerStats_pb2
-        else:  # cs mode
-            type_mapping = {
-                "CAREER": 0,
-                "NORMAL": 1,
-                "RANKED": 6
-            }
+        else:
+            type_mapping = {"CAREER": 0, "NORMAL": 1, "RANKED": 6}
             url = f"{serverurl}/GetPlayerTCStats"
             proto_module = Proto.compiled.PlayerCSStats_pb2
         
         matchmode = type_mapping[match_type]
         
-        # Prepare payload based on mode
         if mode == "br":
-            payload_data = {
-                "accountid": uid,
-                "matchmode": matchmode,
-            }
-        else:  # cs mode
-            payload_data = {
-                "accountid": uid,
-                "gamemode": 15,  # CS mode
-                "matchmode": matchmode,
-            }
+            payload_data = {"accountid": uid, "matchmode": matchmode}
+        else:
+            payload_data = {"accountid": uid, "gamemode": 15, "matchmode": matchmode}
         
-        # Encode payload
         try:
             encrypted_payload = encode_protobuf(payload_data, proto_module.request())
         except Exception as e:
-            raise ProtobufError(f"Failed to encode protobuf payload: {str(e)}")
+            raise Exception(f"Failed to encode protobuf payload: {str(e)}")
         
-        # Prepare headers
         headers = {
             'User-Agent': "Dalvik/2.1.0 (Linux; U; Android 13; A063 Build/TKQ1.221220.001)",
             'Connection': "Keep-Alive",
@@ -231,36 +177,23 @@ def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
             'Content-Type': "application/x-www-form-urlencoded"
         }
         
-        # Make request with timeout
         try:
             response = requests.post(url, data=encrypted_payload, headers=headers, timeout=30)
-            response.raise_for_status()  # Raises HTTPError for bad status codes
+            response.raise_for_status()
             if DEBUG:
                 print("[I] RES:", response.content, "\n")
-        except requests.exceptions.Timeout:
-            raise ConnectionError("Request timed out after 30 seconds")
-        except requests.exceptions.ConnectionError:
-            raise ConnectionError("Failed to connect to the server")
-        except requests.exceptions.HTTPError as e:
-            raise APIError(f"HTTP error {response.status_code}: {str(e)}")
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"Request failed: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Request failed: {str(e)}")
         
-        # Check if response content is valid
         if not response.content:
-            raise APIError("Empty response from server")
+            raise Exception("Empty response from server")
         
-        # Decode response
         try:
             message = decode_protobuf(response.content, proto_module.response)
         except Exception as e:
-            raise ProtobufError(f"Failed to decode protobuf response: {str(e)}")
+            raise Exception(f"Failed to decode protobuf response: {str(e)}")
         
         return message
         
-    except (ValueError, ConnectionError, ProtobufError, APIError):
-        # Re-raise our custom exceptions
-        raise
     except Exception as e:
-        # Catch any other unexpected errors
-        raise APIError(f"Unexpected error: {str(e)}")
+        raise Exception(f"Unexpected error: {str(e)}")
