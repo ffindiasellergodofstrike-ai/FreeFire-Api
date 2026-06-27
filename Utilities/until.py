@@ -60,38 +60,45 @@ def encode_protobuf(data: dict, proto_message: Message) -> bytes:
         raise Exception(f"Proto encoding failed: {str(e)}")
 
 
-def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
+def decode_protobuf(encoded_data: bytes, message_type):
     if not encoded_data:
-        raise ValueError("encoded_data cannot be empty")
-    
+        return {}
+
     instance = message_type()
     
-    # Check for byte 8 (MajorLogin) or byte 10 (PlayerInfo)
-    is_likely_raw = (encoded_data[0] in [8, 10]) or (len(encoded_data) % 16 != 0)
-
-    if is_likely_raw:
+    # 1. Smart Check: MajorLogin (8) or PlayerInfo (10)
+    # Agar data raw hai to direct parse karo
+    first_byte = encoded_data[0]
+    if first_byte in [8, 10] or len(encoded_data) % 16 != 0:
         try:
             instance.MergeFromString(encoded_data)
-            # ZAROORI: json.loads lagana mat bhulna taaki DICT mile
-            return json.loads(json_format.MessageToJson(instance))
+            return json_format.MessageToDict(instance, preserving_proto_field_name=True)
         except:
             pass
 
+    # 2. AES Decryption Attempt
     if len(encoded_data) % 16 == 0:
         try:
-            decrypted = aes_cbc_decrypt(encoded_data)
-            instance = message_type()
-            instance.MergeFromString(decrypted)
-            return json.loads(json_format.MessageToJson(instance))
+            cipher = AES.new(MAIN_KEY, AES.MODE_CBC, MAIN_IV)
+            decrypted = cipher.decrypt(encoded_data)
+            # PKCS7 Unpadding
+            padding_len = decrypted[-1]
+            if padding_len < 16:
+                decrypted = decrypted[:-padding_len]
+            
+            new_instance = message_type()
+            new_instance.MergeFromString(decrypted)
+            return json_format.MessageToDict(new_instance, preserving_proto_field_name=True)
         except:
             pass
-        
+
+    # 3. Last Resort: Skip 1st byte (Garena Status Byte)
     try:
-        instance = message_type()
-        instance.MergeFromString(encoded_data[1:])
-        return json.loads(json_format.MessageToJson(instance))
-    except Exception as e:
-        raise Exception(f"Decode failed: {e}")
+        final_instance = message_type()
+        final_instance.MergeFromString(encoded_data[1:])
+        return json_format.MessageToDict(final_instance, preserving_proto_field_name=True)
+    except:
+        return {} # Empty dict return karo crash se bachne ke liye
 
 
 def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
