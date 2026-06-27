@@ -5,6 +5,7 @@ import Proto.compiled.PlayerCSStats_pb2
 import Proto.compiled.SearchAccountByName_pb2
 from Utilities.until import encode_protobuf, decode_protobuf
 import json
+import zlib
 from Configuration.APIConfiguration import RELEASEVERSION, DEBUG
 import google.protobuf.internal.decoder as decoder # Ye zaroori hai
 
