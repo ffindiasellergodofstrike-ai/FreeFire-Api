@@ -4,7 +4,7 @@ from google.protobuf import json_format, message
 from Crypto.Cipher import AES
 from Configuration.AESConfiguration import MAIN_KEY, MAIN_IV
 
-# Load accounts from JSON file
+# Load accounts from JSON file (UNTOUCHED)
 def load_accounts():
     try:
         with open('./Configuration/AccountConfiguration.json', 'r') as file:
@@ -16,13 +16,13 @@ def load_accounts():
 
 
 def pad(text: bytes) -> bytes:
-    """Apply PKCS#7 padding to text"""
+    """Apply PKCS#7 padding to text (UNTOUCHED)"""
     padding_length = AES.block_size - (len(text) % AES.block_size)
     return text + bytes([padding_length] * padding_length)
 
 
 def unpad(text: bytes) -> bytes:
-    """Remove PKCS#7 padding from text"""
+    """Remove PKCS#7 padding from text (UNTOUCHED)"""
     padding_length = text[-1]
     if padding_length < 1 or padding_length > AES.block_size:
         raise ValueError(f"Invalid padding length: {padding_length}")
@@ -30,13 +30,13 @@ def unpad(text: bytes) -> bytes:
 
 
 def aes_cbc_encrypt(text: bytes) -> bytes:
-    """Encrypt text using AES CBC mode"""
+    """Encrypt text using AES CBC mode (UNTOUCHED)"""
     aes = AES.new(MAIN_KEY, AES.MODE_CBC, MAIN_IV)
     return aes.encrypt(pad(text))
 
 
 def aes_cbc_decrypt(ciphertext: bytes) -> bytes:
-    """Decrypt ciphertext using AES CBC mode"""
+    """Decrypt ciphertext using AES CBC mode (UNTOUCHED)"""
     aes = AES.new(MAIN_KEY, AES.MODE_CBC, MAIN_IV)
     decrypted = aes.decrypt(ciphertext)
     return unpad(decrypted)
@@ -44,18 +44,7 @@ def aes_cbc_decrypt(ciphertext: bytes) -> bytes:
 
 def encode_protobuf(data: dict, proto_message: Message) -> bytes:
     """
-    Utility function to convert dictionary/data to proto bytes with AES encryption
-    
-    Args:
-        data (dict): Dictionary with proto data
-        proto_message (Message): Proto message instance
-    
-    Returns:
-        bytes: AES-encrypted serialized proto data
-    
-    Raises:
-        ValueError: If input is invalid
-        Exception: If proto conversion fails
+    Utility function to convert dictionary/data to proto bytes with AES encryption (UNTOUCHED)
     """
     if not isinstance(data, dict):
         raise ValueError("Data must be a dictionary")
@@ -73,65 +62,53 @@ def encode_protobuf(data: dict, proto_message: Message) -> bytes:
 
 def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
     """
-    Decode a protobuf message. 
-    Smart Detection: OB54 large profiles start with byte 10 (0x0A) and are NOT AES.
+    REFINED FOR OB54: Smart detection for AES vs RAW protobuf.
+    Uses MergeFromString for maximum compatibility with large profiles.
     """
     if not encoded_data:
         raise ValueError("encoded_data cannot be empty")
     
-    instance = message_type()
-    
-    # --- SMART DETECTION LOGIC ---
-    # 1. Agar pehla byte 10 hai, to wo Protobuf tag (field 1) hai.
-    # 2. Agar length 16 ka multiple nahi hai, to wo AES ho hi nahi sakta.
-    is_likely_raw = (encoded_data[0] == 10) or (len(encoded_data) % 16 != 0)
-    
-    if is_likely_raw:
-        try:
-            # Pehle direct parse karke dekhte hain
-            instance.ParseFromString(encoded_data)
-            return json.loads(json_format.MessageToJson(instance))
-        except Exception:
-            # Agar direct fail ho gaya, to niche AES wala logic chalne do
-            pass
-
-    # --- AES DECRYPTION ATTEMPT ---
+    # 1. AES CANDIDATE CHECK
+    # AES data must be a multiple of 16. If not, it's definitely raw.
+    is_aes_candidate = (len(encoded_data) % 16 == 0)
     aes_error = None
+
+    if is_aes_candidate:
+        try:
+            # Try AES Decryption
+            decrypted = aes_cbc_decrypt(encoded_data)
+            instance = message_type()
+            # MergeFromString is safer for reverse engineering
+            instance.MergeFromString(decrypted)
+            return json.loads(json_format.MessageToJson(instance))
+        except Exception as e:
+            aes_error = str(e)
+
+    # 2. RAW PROTOBUF FALLBACK
+    # If not AES or AES failed, try parsing as raw.
     try:
-        decrypted = aes_cbc_decrypt(encoded_data)
         instance = message_type()
-        instance.ParseFromString(decrypted)
+        
+        # Automatic Garena Header detection (Sometimes first 5 bytes are header)
+        data_to_parse = encoded_data
+        if len(encoded_data) > 5 and encoded_data[0] != 10 and encoded_data[5] == 10:
+            data_to_parse = encoded_data[5:]
+        
+        instance.MergeFromString(data_to_parse)
         return json.loads(json_format.MessageToJson(instance))
-    except Exception as e:
-        aes_error = str(e)
     
-    # --- FINAL FALLBACK (RAW PARSING) ---
-    try:
-        instance = message_type()
-        # ignore_unknown_fields logic (OB54 updates ke liye zaroori hai)
-        instance.ParseFromString(encoded_data)
-        return json.loads(json_format.MessageToJson(instance))
     except Exception as raw_e:
         error_msg = (
-            f"Failed to decode. AES Error: {aes_error}. "
-            f"Raw Error: {str(raw_e)}. Data len: {len(encoded_data)}"
+            f"Failed to decode protobuf message of type '{message_type.DESCRIPTOR.name}'. "
+            f"AES attempt: {aes_error}. Raw attempt: {str(raw_e)}. "
+            f"Data length: {len(encoded_data)} bytes."
         )
         raise Exception(error_msg)
 
 
 def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
     """
-    Encodes to Protobuf WITHOUT AES encryption (Required for game data)
-    
-    Args:
-        data (dict): Dictionary with proto data
-        proto_message (message.Message): Proto message instance
-    
-    Returns:
-        bytes: Serialized proto data (unencrypted)
-    
-    Raises:
-        Exception: If proto conversion fails
+    Encodes to Protobuf WITHOUT AES encryption (UNTOUCHED)
     """
     try:
         json_format.ParseDict(data, proto_message)
