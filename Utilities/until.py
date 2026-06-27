@@ -73,65 +73,50 @@ def encode_protobuf(data: dict, proto_message: Message) -> bytes:
 
 def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
     """
-    Decode a protobuf message from AES-encrypted or raw protobuf bytes.
-    Attempts AES decryption first, then falls back to raw protobuf parsing.
-    
-    Uses MergeFromString with ignore_unknown_fields approach for compatibility.
-    Returns a Python dict (JSON-serializable).
-    
-    Args:
-        encoded_data (bytes): Encoded protobuf data (potentially AES-encrypted)
-        message_type (message.Message): The protobuf message type to decode into
-    
-    Returns:
-        dict: Decoded message as a dictionary
-    
-    Raises:
-        Exception: If both AES and raw decoding fail
+    Decode a protobuf message. 
+    Smart Detection: OB54 large profiles start with byte 10 (0x0A) and are NOT AES.
     """
     if not encoded_data:
         raise ValueError("encoded_data cannot be empty")
     
-    instance = None
-    aes_error = None
-    raw_error = None
+    instance = message_type()
     
-    # Attempt 1: Try AES decryption
+    # --- SMART DETECTION LOGIC ---
+    # 1. Agar pehla byte 10 hai, to wo Protobuf tag (field 1) hai.
+    # 2. Agar length 16 ka multiple nahi hai, to wo AES ho hi nahi sakta.
+    is_likely_raw = (encoded_data[0] == 10) or (len(encoded_data) % 16 != 0)
+    
+    if is_likely_raw:
+        try:
+            # Pehle direct parse karke dekhte hain
+            instance.ParseFromString(encoded_data)
+            return json.loads(json_format.MessageToJson(instance))
+        except Exception:
+            # Agar direct fail ho gaya, to niche AES wala logic chalne do
+            pass
+
+    # --- AES DECRYPTION ATTEMPT ---
+    aes_error = None
     try:
         decrypted = aes_cbc_decrypt(encoded_data)
         instance = message_type()
         instance.ParseFromString(decrypted)
-        
-        # Successfully parsed AES-decrypted data
         return json.loads(json_format.MessageToJson(instance))
-    
-    except ValueError as ve:
-        # Invalid padding - likely not AES-encrypted
-        aes_error = f"AES decrypt failed - invalid padding: {str(ve)}"
     except Exception as e:
-        # Other AES/parse errors
-        aes_error = f"AES decrypt or parse failed: {str(e)}"
+        aes_error = str(e)
     
-    # Attempt 2: Try raw protobuf parsing (no decryption)
+    # --- FINAL FALLBACK (RAW PARSING) ---
     try:
         instance = message_type()
+        # ignore_unknown_fields logic (OB54 updates ke liye zaroori hai)
         instance.ParseFromString(encoded_data)
-        
-        # Successfully parsed raw protobuf data
         return json.loads(json_format.MessageToJson(instance))
-    
-    except Exception as e:
-        raw_error = f"Raw protobuf parse failed: {str(e)}"
-    
-    # Both methods failed - raise detailed error
-    error_msg = (
-        f"Failed to decode protobuf message of type '{message_type.DESCRIPTOR.name}'. "
-        f"Tried AES decryption: {aes_error}. "
-        f"Tried raw parsing: {raw_error}. "
-        f"Data length: {len(encoded_data)} bytes. "
-        f"Note: Proto definition may be outdated or incompatible with server version."
-    )
-    raise Exception(error_msg)
+    except Exception as raw_e:
+        error_msg = (
+            f"Failed to decode. AES Error: {aes_error}. "
+            f"Raw Error: {str(raw_e)}. Data len: {len(encoded_data)}"
+        )
+        raise Exception(error_msg)
 
 
 def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
