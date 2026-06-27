@@ -86,21 +86,18 @@ def get_major_login(logintoken, openid):
 
     # Make the request
     response = requests.post(url, data=encrypted_payload, headers=headers)
-    if DEBUG:
+     if DEBUG:
         print("[MajorLogin] Response(raw):", response.content, "\n")
     
     try:
-        # MAJOR LOGIN FIX: Ise direct parse karein, decode_protobuf use na karein
-        # Kyunki decode_protobuf ise AES samajh kar crash kar raha hai
-        message = Proto.compiled.MajorLogin_pb2.response()
-        message.ParseFromString(response.content) # Direct Parsing
+        # decode_protobuf ab DICT return karega
+        result = decode_protobuf(response.content, Proto.compiled.MajorLogin_pb2.response)
         
-        # Convert to dictionary
-        return json.loads(json.dumps(message, default=str))
+        # Check if we actually got a dictionary
+        if isinstance(result, dict):
+            return result
+        else:
+            return False
     except Exception as e:
         print("[MajorLogin] Error during parsing:", e)
-        # Fallback agar direct fail ho
-        try:
-            return decode_protobuf(response.content, Proto.compiled.MajorLogin_pb2.response)
-        except:
-            return False
+        return False # False return karna zaroori hai
