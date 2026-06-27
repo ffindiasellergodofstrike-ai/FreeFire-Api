@@ -69,79 +69,29 @@ def search_account_by_keyword(server_url, auth_token, keyword):
     except Exception as e:
         raise RuntimeError(f"Unhandled error in search_account_by_keyword: {e}")
 
-def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
+def get_player_personal_show(serverurl, authorization, account_id, **kwargs):
     url = f"{serverurl}/GetPlayerPersonalShow"
-
-    # WORKING REPO LOGIC: Garena IND server expects tags 'a' and 'b' for request
-    # Hum aapke existing proto ko hi use karenge par tags ka dyan rakhenge
-    payload_data = {
-        "accountId": int(account_id), # Field 'a' equivalent
-        "callSignSrc": int(call_sign_src) # Field 'b' equivalent
-    }
     
-    # Request hamesha AES Encrypt honi chahiye (encode_protobuf handles this)
-    try:
-        encrypted_payload = encode_protobuf(payload_data, Proto.compiled.PlayerPersonalShow_pb2.request())
-    except:
-        # Agar dict keys match nahi ho rahi to raw mapping
-        req = Proto.compiled.PlayerPersonalShow_pb2.request()
-        req.accountId = int(account_id)
-        req.callSignSrc = int(call_sign_src)
-        from Utilities.until import aes_cbc_encrypt
-        encrypted_payload = aes_cbc_encrypt(req.SerializeToString())
+    req = Proto.compiled.PlayerPersonalShow_pb2.request()
+    req.accountId = int(account_id)
+    req.callSignSrc = 7
+    
+    # Payload
+    payload = encode_protobuf({"accountId": int(account_id), "callSignSrc": 7}, Proto.compiled.PlayerPersonalShow_pb2.request())
 
-    # WORKING HEADERS from Second Repo
     headers = {
-      "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
-      "Accept": "*/*",
-      "Accept-Encoding": "gzip", # Working repo uses gzip
-      "Authorization": f"Bearer {authorization}",
-      "X-GA": "v1 1",
-      "ReleaseVersion": RELEASEVERSION,
-      "Content-Type": "application/octet-stream", # This is key!
-      "X-Unity-Version": "2018.4.11f1",
-      "Expect": "100-continue"
+        "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
+        "Authorization": f"Bearer {authorization}",
+        "Content-Type": "application/x-protobuf", # Octet-stream ki jagah ye use karein
+        "X-GA": "v1 1",
+        "ReleaseVersion": RELEASEVERSION
     }
     
-    try:
-        response = requests.post(url, data=encrypted_payload, headers=headers, timeout=15)
-        response.raise_for_status()
-        
-        raw_res = response.content
-        if DEBUG:
-            print(f"[GetPlayerPersonalShow] Byte 0: {raw_res[0] if raw_res else 'Empty'}")
+    response = requests.post(url, data=payload, headers=headers, timeout=10)
+    
+    # Dictionary return karo
+    return decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
 
-        # --- WORKING DECODE STRATEGY ---
-        # IND Server response me aksar 1-byte status header (0x00) bhejta hai
-        # Uske baad asli protobuf message shuru hota hai (Tag 0x0A)
-        
-        data_to_parse = raw_res
-        # Agar pehla byte 10 nahi hai aur 2nd byte 10 hai, to pehla byte status hai
-        if len(raw_res) > 1 and raw_res[0] != 10 and raw_res[1] == 10:
-            data_to_parse = raw_res[1:]
-        # Agar data bada hai, to Varint length dhoondo
-        elif len(raw_res) > 5 and raw_res[0] != 10:
-            try:
-                (msg_len, start_offset) = decoder._DecodeVarint32(raw_res, 0)
-                data_to_parse = raw_res[start_offset:start_offset+msg_len]
-            except:
-                pass
-
-        # Final Parsing using the updated Schema
-        message = Proto.compiled.PlayerPersonalShow_pb2.response()
-        # MergeFromString use karein taaki unknown fields crash na karein
-        message.MergeFromString(data_to_parse)
-        
-        return json.loads(json.dumps(message, default=str))
-
-    except Exception as e:
-        print(f"Error for UID {account_id}: {e}")
-        # Last resort fallback
-        try:
-            from Utilities.until import decode_protobuf
-            return decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
-        except:
-            return None
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     """
