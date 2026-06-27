@@ -282,6 +282,11 @@ message response {
     SparkInfo user_spark_info = 15;
     SparkInfo collab_spark_info = 16;
     repeated AccountCollectionCustomItemInfo collection_custom_list = 17;
+    
+    // --- OB54 NEW FIELDS ADDED BELOW ---
+    repeated uint32 achievement_tags = 18;           // Naye Achievement system ke liye
+    optional uint32 social_info_bit = 19;            // Social profile flags ke liye
+    optional WorkshopAccountSummaryInfo workshop_summary = 20; // Craftland/Workshop stats ke liye
 }
 
 
