@@ -61,50 +61,35 @@ def encode_protobuf(data: dict, proto_message: Message) -> bytes:
 
 
 def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
-    """
-    REFINED FOR OB54: Smart detection for AES vs RAW protobuf.
-    Uses MergeFromString for maximum compatibility with large profiles.
-    """
     if not encoded_data:
         raise ValueError("encoded_data cannot be empty")
     
-    # 1. AES CANDIDATE CHECK
-    # AES data must be a multiple of 16. If not, it's definitely raw.
-    is_aes_candidate = (len(encoded_data) % 16 == 0)
-    aes_error = None
-
-    if is_aes_candidate:
+    instance = message_type()
+    
+    # Strategy: Pehle RAW Protobuf try karo (OB54 profiles raw hote hain)
+    # Agar 0x0A (10) se start ho raha hai, to 99% raw hai
+    if encoded_data[0] == 10:
         try:
-            # Try AES Decryption
+            instance.MergeFromString(encoded_data)
+            return json.loads(json_format.MessageToJson(instance))
+        except:
+            pass
+
+    # Phir AES try karo (Tokens wagera ke liye)
+    try:
+        if len(encoded_data) % 16 == 0:
             decrypted = aes_cbc_decrypt(encoded_data)
-            instance = message_type()
-            # MergeFromString is safer for reverse engineering
             instance.MergeFromString(decrypted)
             return json.loads(json_format.MessageToJson(instance))
-        except Exception as e:
-            aes_error = str(e)
-
-    # 2. RAW PROTOBUF FALLBACK
-    # If not AES or AES failed, try parsing as raw.
+    except:
+        pass
+        
+    # Last Fallback: Garena 1-byte header skip
     try:
-        instance = message_type()
-        
-        # Automatic Garena Header detection (Sometimes first 5 bytes are header)
-        data_to_parse = encoded_data
-        if len(encoded_data) > 5 and encoded_data[0] != 10 and encoded_data[5] == 10:
-            data_to_parse = encoded_data[5:]
-        
-        instance.MergeFromString(data_to_parse)
+        instance.MergeFromString(encoded_data[1:])
         return json.loads(json_format.MessageToJson(instance))
-    
-    except Exception as raw_e:
-        error_msg = (
-            f"Failed to decode protobuf message of type '{message_type.DESCRIPTOR.name}'. "
-            f"AES attempt: {aes_error}. Raw attempt: {str(raw_e)}. "
-            f"Data length: {len(encoded_data)} bytes."
-        )
-        raise Exception(error_msg)
-
+    except Exception as e:
+        raise Exception(f"All decode methods failed: {e}")
 
 def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
     """
