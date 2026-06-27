@@ -72,68 +72,76 @@ def search_account_by_keyword(server_url, auth_token, keyword):
 def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
     url = f"{serverurl}/GetPlayerPersonalShow"
 
+    # WORKING REPO LOGIC: Garena IND server expects tags 'a' and 'b' for request
+    # Hum aapke existing proto ko hi use karenge par tags ka dyan rakhenge
     payload_data = {
-        "accountId": account_id,
-        "callSignSrc": call_sign_src,
-        "needGalleryInfo": need_gallery_info,
-        "needBlacklist": need_blacklist,
-        "needSparkInfo": need_spark_info,
+        "accountId": int(account_id), # Field 'a' equivalent
+        "callSignSrc": int(call_sign_src) # Field 'b' equivalent
     }
     
-    encrypted_payload = encode_protobuf(payload_data, Proto.compiled.PlayerPersonalShow_pb2.request())
+    # Request hamesha AES Encrypt honi chahiye (encode_protobuf handles this)
+    try:
+        encrypted_payload = encode_protobuf(payload_data, Proto.compiled.PlayerPersonalShow_pb2.request())
+    except:
+        # Agar dict keys match nahi ho rahi to raw mapping
+        req = Proto.compiled.PlayerPersonalShow_pb2.request()
+        req.accountId = int(account_id)
+        req.callSignSrc = int(call_sign_src)
+        from Utilities.until import aes_cbc_encrypt
+        encrypted_payload = aes_cbc_encrypt(req.SerializeToString())
 
-    # Second Repo jaisa header (Identity use karna zaroori hai compression se bachne ke liye)
+    # WORKING HEADERS from Second Repo
     headers = {
       "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
       "Accept": "*/*",
-      "Accept-Encoding": "identity", 
+      "Accept-Encoding": "gzip", # Working repo uses gzip
       "Authorization": f"Bearer {authorization}",
       "X-GA": "v1 1",
       "ReleaseVersion": RELEASEVERSION,
-      "Content-Type": "application/x-protobuf",
-      "X-Unity-Version": "2022.3.47f1",
-      "Connection": "keep-alive"
+      "Content-Type": "application/octet-stream", # This is key!
+      "X-Unity-Version": "2018.4.11f1",
+      "Expect": "100-continue"
     }
     
     try:
-        response = requests.post(url, data=encrypted_payload, headers=headers, timeout=10)
+        response = requests.post(url, data=encrypted_payload, headers=headers, timeout=15)
         response.raise_for_status()
+        
         raw_res = response.content
-
         if DEBUG:
-            # Debugging ke liye first 10 bytes print karega
-            print(f"[GetPlayerPersonalShow] Raw Hex: {raw_res[:10].hex()}")
+            print(f"[GetPlayerPersonalShow] Byte 0: {raw_res[0] if raw_res else 'Empty'}")
 
-        # --- SECOND REPO (WORKING) DECODE LOGIC ---
-        # Garena IND server hamesha ek 1-byte status bhejta hai (0x00 ya 0x01)
-        # Uske baad asli Protobuf start hota hai.
+        # --- WORKING DECODE STRATEGY ---
+        # IND Server response me aksar 1-byte status header (0x00) bhejta hai
+        # Uske baad asli protobuf message shuru hota hai (Tag 0x0A)
         
+        data_to_parse = raw_res
+        # Agar pehla byte 10 nahi hai aur 2nd byte 10 hai, to pehla byte status hai
+        if len(raw_res) > 1 and raw_res[0] != 10 and raw_res[1] == 10:
+            data_to_parse = raw_res[1:]
+        # Agar data bada hai, to Varint length dhoondo
+        elif len(raw_res) > 5 and raw_res[0] != 10:
+            try:
+                (msg_len, start_offset) = decoder._DecodeVarint32(raw_res, 0)
+                data_to_parse = raw_res[start_offset:start_offset+msg_len]
+            except:
+                pass
+
+        # Final Parsing using the updated Schema
         message = Proto.compiled.PlayerPersonalShow_pb2.response()
+        # MergeFromString use karein taaki unknown fields crash na karein
+        message.MergeFromString(data_to_parse)
         
-        # Logic 1: Agar data 0x0A (10) se start nahi ho raha, to 1st byte skip karo
-        actual_data = raw_res
-        if len(raw_res) > 1 and raw_res[0] != 10:
-            if raw_res[1] == 10: # Agar 2nd byte 10 hai, to wahan se start karo
-                actual_data = raw_res[1:]
-            else:
-                # Agar fir bhi 10 nahi mila, to Varint length dhoondo (LGR Logic)
-                try:
-                    (msg_len, start_offset) = decoder._DecodeVarint32(raw_res, 0)
-                    actual_data = raw_res[start_offset:start_offset+msg_len]
-                except:
-                    pass
-
-        try:
-            # Sabse pehle Merge use karo (Strict nahi hota)
-            message.MergeFromString(actual_data)
-            return json.loads(json.dumps(message, default=str))
-        except Exception as e:
-            # Agar fail ho jaye, to default decode_protobuf try karo
-            return decode_protobuf(raw_res, Proto.compiled.PlayerPersonalShow_pb2.response)
+        return json.loads(json.dumps(message, default=str))
 
     except Exception as e:
         print(f"Error for UID {account_id}: {e}")
-        return None
+        # Last resort fallback
+        try:
+            from Utilities.until import decode_protobuf
+            return decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
+        except:
+            return None
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     """
