@@ -3,6 +3,7 @@ import Proto.compiled.PlayerPersonalShow_pb2
 import Proto.compiled.PlayerStats_pb2
 import Proto.compiled.PlayerCSStats_pb2
 import Proto.compiled.SearchAccountByName_pb2
+import Proto.compiled.AccountPersonalShow_pb2
 from Utilities.until import encode_protobuf, decode_protobuf
 import json
 from Configuration.APIConfiguration import RELEASEVERSION, DEBUG
@@ -126,14 +127,14 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
         print("[GetPlayerPersonalShow] Response(raw):", response.content, "\n")
     try:
         response.raise_for_status()  # Raise an exception for bad status codes
-        
-        # Decode protobuf response
-        message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
-        
+
+        # Decode protobuf response using AccountPersonalShowInfo schema (matches server response)
+        message = decode_protobuf(response.content, Proto.compiled.AccountPersonalShow_pb2.AccountPersonalShowInfo)
+
         # Convert to JSON
         json_data = json.loads(json.dumps(message, default=str))
         return json_data
-        
+
     except requests.exceptions.RequestException as e:
         print(f"Request failed: {response.text}")
         return None
