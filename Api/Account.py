@@ -68,7 +68,7 @@ def get_major_login(logintoken, openid):
 
     # API endpoint
     # url = "https://loginbp.ggblueshark.com/MajorLogin"
-    url = "https://loginbp.ggwhitehawk.com/MajorLogin"
+    url = "https://loginbp.ggpolarbear.com/MajorLogin"
 
     # Headers
     headers = {
@@ -86,18 +86,12 @@ def get_major_login(logintoken, openid):
 
     # Make the request
     response = requests.post(url, data=encrypted_payload, headers=headers)
-     if DEBUG:
+    if DEBUG:
         print("[MajorLogin] Response(raw):", response.content, "\n")
-    
     try:
-        # decode_protobuf ab DICT return karega
-        result = decode_protobuf(response.content, Proto.compiled.MajorLogin_pb2.response)
-        
-        # Check if we actually got a dictionary
-        if isinstance(result, dict):
-            return result
-        else:
-            return False
-    except Exception as e:
-        print("[MajorLogin] Error during parsing:", e)
-        return False # False return karna zaroori hai
+        # Decode and return the response as JSON
+        message = decode_protobuf(response.content, Proto.compiled.MajorLogin_pb2.response)
+        return message
+    except:
+        print("[MajorLogin] Error:", response.text)
+    return False
