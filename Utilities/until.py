@@ -64,40 +64,35 @@ def decode_protobuf(encoded_data: bytes, message_type: message.Message) -> dict:
     if not encoded_data:
         raise ValueError("encoded_data cannot be empty")
     
-    # Instance create karna zaroori hai
     instance = message_type()
     
-    # 1. SMART DETECTION: 8 (MajorLogin), 10 (PlayerInfo), ya length AES wali na ho
+    # Check for byte 8 (MajorLogin) or byte 10 (PlayerInfo)
     is_likely_raw = (encoded_data[0] in [8, 10]) or (len(encoded_data) % 16 != 0)
 
-    # 2. Agar raw dikh raha hai, to pehle direct parse karo
     if is_likely_raw:
         try:
             instance.MergeFromString(encoded_data)
+            # ZAROORI: json.loads lagana mat bhulna taaki DICT mile
             return json.loads(json_format.MessageToJson(instance))
         except:
-            # Agar raw parsing fail ho jaye (rare case), to niche AES try hone do
             pass
 
-    # 3. AES DECRYPTION: Agar length 16 se divide ho rahi hai
     if len(encoded_data) % 16 == 0:
         try:
             decrypted = aes_cbc_decrypt(encoded_data)
-            # Fresh instance for decrypted data
             instance = message_type()
             instance.MergeFromString(decrypted)
             return json.loads(json_format.MessageToJson(instance))
         except:
             pass
         
-    # 4. FINAL FALLBACK: Garena 1-byte status header skip karke dekho
     try:
         instance = message_type()
         instance.MergeFromString(encoded_data[1:])
         return json.loads(json_format.MessageToJson(instance))
     except Exception as e:
-        # Agar sab fail ho jaye
-        raise Exception(f"All decode methods failed for {message_type.DESCRIPTOR.name}: {e}")
+        raise Exception(f"Decode failed: {e}")
+
 
 def encode_protobuf_raw(data: dict, proto_message: message.Message) -> bytes:
     """
