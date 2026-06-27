@@ -84,28 +84,20 @@ def search_account_by_keyword(server_url, auth_token, keyword):
         raise RuntimeError(f"Unhandled error in search_account_by_keyword: {e}")
 
 def get_player_personal_show(serverurl, authorization, account_id, need_gallery_info=False, call_sign_src=7, need_blacklist=False, need_spark_info=False):
-    """
-    Get player personal show data
-    
-    Args:
-        authorization (str): Bearer token for authentication
-        account_id (int): Player account ID
-        need_gallery_info (bool): Whether to include gallery info, default False
-        call_sign_src (int): Call sign source, default 7
-    
-    Returns:
-        dict: JSON response data
-    """
     url = f"{serverurl}/GetPlayerPersonalShow"
 
-    encrypted_payload = encode_protobuf({
+    # Payload generate karna
+    payload_data = {
         "accountId": account_id,
         "callSignSrc": call_sign_src,
         "needGalleryInfo": need_gallery_info,
         "needBlacklist": need_blacklist,
         "needSparkInfo": need_spark_info,
-    }, Proto.compiled.PlayerPersonalShow_pb2.request())
+    }
+    
+    encrypted_payload = encode_protobuf(payload_data, Proto.compiled.PlayerPersonalShow_pb2.request())
 
+    # Naye Headers (Content-Length hata diya gaya hai)
     headers = {
       "Host": "client.ind.freefiremobile.com",
       "User-Agent": "UnityPlayer/2022.3.47f1 (UnityWebRequest/1.0, libcurl/8.5.0-DEV)",
@@ -115,32 +107,42 @@ def get_player_personal_show(serverurl, authorization, account_id, need_gallery_
       "X-GA": "v1 1",
       "ReleaseVersion": RELEASEVERSION,
       "Content-Type": "application/x-www-form-urlencoded",
-      "X-Unity-Version": "2022.3.47f1",
-      "Content-Length": "16"
+      "X-Unity-Version": "2022.3.47f1"
+      # Content-Length yahan se hata diya hai, requests ise handle karega
     }
     
-    
-    
     response = requests.post(url, data=encrypted_payload, headers=headers)
+    
     if DEBUG:
-        print("[GetPlayerPersonalShow] Response(raw):", response.content, "\n")
+        print("[GetPlayerPersonalShow] Response(raw) length:", len(response.content))
+
     try:
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response.raise_for_status()
         
-        # Decode protobuf response
-        message = decode_protobuf(response.content, Proto.compiled.PlayerPersonalShow_pb2.response)
+        # --- SMART DECODE LOGIC ---
+        # Agar response ka pehla byte 10 (0x0A) hai, to ye Raw Protobuf hai.
+        # Isse AES padding error nahi aayega.
+        raw_res = response.content
+        if len(raw_res) > 0 and raw_res[0] == 10:
+            message = Proto.compiled.PlayerPersonalShow_pb2.response()
+            message.ParseFromString(raw_res)
+        else:
+            # Purana tarika agar AES encrypted ho
+            message = decode_protobuf(raw_res, Proto.compiled.PlayerPersonalShow_pb2.response)
         
         # Convert to JSON
         json_data = json.loads(json.dumps(message, default=str))
         return json_data
         
-    except requests.exceptions.RequestException as e:
-        print(f"Request failed: {response.text}")
-        return None
     except Exception as e:
-        print(f"Error processing response: {e}")
-        return None
-
+        print(f"Error processing response for UID {account_id}: {e}")
+        # Fallback: Bina AES ke direct try karein
+        try:
+            message = Proto.compiled.PlayerPersonalShow_pb2.response()
+            message.ParseFromString(response.content)
+            return json.loads(json.dumps(message, default=str))
+        except:
+            return None
 
 def get_player_stats(authorization, serverurl, mode, uid, match_type="CAREER"):
     """
